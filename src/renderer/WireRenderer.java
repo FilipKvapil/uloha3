@@ -8,11 +8,13 @@ import transforms.Mat4;
 import transforms.Point3D;
 import transforms.Vec3D;
 
+import java.awt.*;
+
 public class WireRenderer {
 
     private final LineRasterizerGraphics lineRasterizer;
     private final Mat4 proj;
-    private final Mat4 view;
+    private Mat4 view;
     private final Raster raster;
 
     public WireRenderer(Raster raster, LineRasterizerGraphics lineRasterizer , Mat4 proj, Mat4 view) {
@@ -22,7 +24,8 @@ public class WireRenderer {
         this.raster = raster;
     }
 
-    public void renderSolid(Solid solid){
+    private void renderSolid(Solid solid){
+        Color color = solid.getColor();
         for (int i = 0; i < solid.getIb().size(); i += 2) {
             int index1 = solid.getIb().get(i);
             int index2 = solid.getIb().get(i + 1);
@@ -44,7 +47,7 @@ public class WireRenderer {
                     (int) Math.round(v1.getX()), (int) Math.round(v1.getY()),
                     (int) Math.round(v2.getX()), (int) Math.round(v2.getY())
             );
-            lineRasterizer.drawLine(line);
+            lineRasterizer.drawLine(line,color);
         }
     }
     private Vec3D transformToWindows(Vec3D v){
@@ -56,5 +59,9 @@ public class WireRenderer {
         for (Solid solid: solids){
             renderSolid(solid);
         }
+    }
+
+    public void setView(Mat4 view) {
+        this.view = view;
     }
 }

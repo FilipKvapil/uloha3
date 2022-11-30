@@ -37,6 +37,9 @@ public class LineRasterizerGraphics extends LineRasterizer {
     public void drawLine(Line line) {
         drawLine(line.getX1(), line.getY1(), line.getX2(), line.getY2());
     }
+    public void drawLine(Line line,Color color) {
+        drawLine(line.getX1(), line.getY1(), line.getX2(), line.getY2(),color);
+    }
 
 
 }

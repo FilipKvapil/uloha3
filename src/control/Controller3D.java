@@ -1,5 +1,8 @@
 package control;
 
+import model.Axis.AxisX;
+import model.Axis.AxisY;
+import model.Axis.AxisZ;
 import model.Cube;
 import renderer.WireRenderer;
 import rasterize.LineRasterizerGraphics;
@@ -14,16 +17,23 @@ public class Controller3D implements Controller {
     private final Panel panel;
 
     private WireRenderer wireRenderer;
-    private Cube cube = new Cube();
+    private final Cube cube = new Cube();
+    private final AxisX axisX = new AxisX();
+    private final AxisY axisY = new AxisY();
+    private final AxisZ axisZ = new AxisZ();
+    private int mouseX;
+    private int mouseY;
     Mat4 mat4Scale = new Mat4Scale(0.5f);
     Mat4 proj ;
-
+    Vec3D position = new Vec3D(-3.,1.,1);
+    double azimuth = Math.toRadians(0);
+    double zenith = Math.toRadians(0);
     Camera camera = new Camera(
-                    new Vec3D(-3.,0.,0.),
+            position,
                     //azimuth
-                    Math.toRadians(0),
+                    azimuth,
                     //zenith
-                    Math.toRadians(0),
+                    zenith,
                     1,true
                     );
 
@@ -47,13 +57,11 @@ public class Controller3D implements Controller {
 
             //Stisknutí tlačítka myši
             @Override
-            public void mousePressed(MouseEvent e) {
+            public void mouseEntered(MouseEvent e) {
+                mouseX=e.getX();
+                mouseY=e.getY();
             }
-            //Uvolnění tlačítka myši
-            @Override
-            public void mouseReleased(MouseEvent e) {
 
-            }
         });
 
         panel.addMouseMotionListener(new MouseMotionAdapter() {
@@ -62,20 +70,57 @@ public class Controller3D implements Controller {
             public void mouseDragged(MouseEvent e) {
 
             }
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                    if(e.getX()>mouseX){
+                        azimuth -= Math.toRadians(.5);
+                        cameraSetPotic();
+                    }else if (e.getX()<mouseX){
+                        azimuth += Math.toRadians(.5);
+                        cameraSetPotic();
+                    }
+
+                    if (e.getY() > mouseY) {
+                        zenith -= Math.toRadians(.5);
+                        cameraSetPotic();
+                    } else if (e.getY() < mouseY) {
+                        zenith += Math.toRadians(.5);
+                        cameraSetPotic();
+                    }
+
+                mouseX = e.getX();
+                mouseY = e.getY();
+            }
         });
 
         panel.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                // na klávesu C vymazat plátno
-
+                switch(e.getKeyCode()) {
+                    case KeyEvent.VK_W: case KeyEvent.VK_UP:
+                        position = new Vec3D(position.getX()+.1, position.getY(), position.getZ());
+                        cameraSetPotic();
+                        break;
+                    case KeyEvent.VK_S: case KeyEvent.VK_DOWN:
+                        position = new Vec3D(position.getX()-.1, position.getY(), position.getZ());
+                        cameraSetPotic();
+                        break;
+                    case KeyEvent.VK_A: case KeyEvent.VK_LEFT:
+                        position = new Vec3D(position.getX(), position.getY()+.1, position.getZ());
+                        cameraSetPotic();
+                        break;
+                    case KeyEvent.VK_D: case KeyEvent.VK_RIGHT:
+                        position = new Vec3D(position.getX(), position.getY()-.1, position.getZ());
+                        cameraSetPotic();
+                        break;
+                }
             }
         });
-
         panel.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
-
+                panel.resize();
+                initObjects(panel.getRaster());
             }
         });
     }
@@ -83,14 +128,19 @@ public class Controller3D implements Controller {
     private void draw (){
         cube.setModel(mat4Scale);
         panel.clear();
-        wireRenderer.render(cube);
+        wireRenderer.render(axisX,axisY,axisZ,cube);
         panel.repaint();
     }
     private void update() {
 //        panel.clear();
 
     }
-
+    private void cameraSetPotic (){
+        camera = new Camera(camera, position);
+        camera = new Camera(camera,azimuth,zenith);
+        wireRenderer.setView(camera.getViewMatrix());
+        draw();
+    }
     private void hardClear() {
         panel.clear();
     }
