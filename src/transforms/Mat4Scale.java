@@ -44,4 +44,5 @@ public class Mat4Scale extends Mat4Identity {
 		this(v.getX(), v.getY(), v.getZ());
 	}
 
+
 }

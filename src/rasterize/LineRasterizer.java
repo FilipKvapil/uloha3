@@ -13,11 +13,4 @@ public abstract class LineRasterizer {
     public void setColor(int color) {
         this.color = new Color(color);
     }
-
-    protected void drawLine(int x1, int y1, int x2, int y2) {
-
-    }
-    public Raster getRaster() {
-        return raster;
-    }
 }

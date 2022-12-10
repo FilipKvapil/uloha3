@@ -1,9 +1,9 @@
 package control;
 
+import model.*;
 import model.Axis.AxisX;
 import model.Axis.AxisY;
 import model.Axis.AxisZ;
-import model.Cube;
 import renderer.WireRenderer;
 import rasterize.LineRasterizerGraphics;
 import rasterize.Raster;
@@ -17,38 +17,115 @@ public class Controller3D implements Controller {
     private final Panel panel;
 
     private WireRenderer wireRenderer;
+
+    //Objekty
     private final Cube cube = new Cube();
+    private final Hexahonal hexahonal = new Hexahonal();
+    private final Pyramid pyramid = new Pyramid();
+    //Křivky
+    private final CurveFerg curveFerg = new CurveFerg();
+    private final CurveBezi curveBezi = new CurveBezi();
+    private final CurveCoon curveCoon = new CurveCoon();
+    //Axis
     private final AxisX axisX = new AxisX();
     private final AxisY axisY = new AxisY();
     private final AxisZ axisZ = new AxisZ();
+
     private int mouseX;
     private int mouseY;
-    Mat4 mat4Scale = new Mat4Scale(0.5f);
-    Mat4 proj ;
-    Vec3D position = new Vec3D(-3.,1.,1);
+    private int mouseButton;
+
+    private int object;
+    private int krivka;
+    private int trans;
+
+    //model = jednotková matice
+    Mat4 model = new Mat4Identity();
+
+    //Otočení
+    Mat4 mat4RotXUp = new Mat4RotX(Math.PI / 20);
+    Mat4 mat4RotYUp = new Mat4RotY(Math.PI / 20);
+    Mat4 mat4RotZUP = new Mat4RotZ(Math.PI / 20);
+
+    Mat4 mat4RotXDown = new Mat4RotX(-(Math.PI / 20));
+    Mat4 mat4RotYDown = new Mat4RotY(-(Math.PI / 20));
+    Mat4 mat4RotZDown = new Mat4RotZ(-(Math.PI / 20));
+
+
+    //Posunutí
+    Mat4 mat4Transl = new Mat4Identity();
+
+    //Měřítko
+    Mat4 mat4Scale;
+
+    //Kamera
+    Mat4 projPers;
+    Mat4 projOrtho;
+
+    //Pozice kamery
+    Vec3D position = new Vec3D(-3, 1, 1);
     double azimuth = Math.toRadians(0);
     double zenith = Math.toRadians(0);
     Camera camera = new Camera(
             position,
-                    //azimuth
-                    azimuth,
-                    //zenith
-                    zenith,
-                    1,true
-                    );
+            //azimuth
+            azimuth,
+            //zenith
+            zenith,
+            1, true
+    );
 
-
+    //Konstruktor
     public Controller3D(Panel panel) {
         this.panel = panel;
+        //Listener na tlačítka a boxy
+        ActionListener listener = e -> {
+            Object source = e.getSource();
+            if (source == panel.getCBKrivka()) {
+                krivka = panel.getCBKrivka().getSelectedIndex();
+            } else if (source == panel.getCBKamera()) {
+                if (panel.getCBKamera().getSelectedIndex() == 0) {
+                    wireRenderer.setProj(projPers);
+                    position = new Vec3D(-3, 1, 1);
+                } else if (panel.getCBKamera().getSelectedIndex() == 1) {
+                    wireRenderer.setProj(projOrtho);
+                    position = new Vec3D(-.1, -.2, 0);
+                }
+                cameraSetPosition();
+            } else if (source == panel.getCBTrans()) {
+                trans = panel.getCBTrans().getSelectedIndex();
+            } else if (source == panel.getCBObjekt()) {
+                object = panel.getCBObjekt().getSelectedIndex();
+            } else if (source == panel.getJBReset()) {
+                position = new Vec3D(-3, 1, 1);
+                azimuth = Math.toRadians(0);
+                zenith = Math.toRadians(0);
+                cameraSetPosition();
+            }
+            displey();
+            panel.grabFocus();
+        };
+
+        panel.getCBKamera().addActionListener(listener);
+        panel.getCBKrivka().addActionListener(listener);
+        panel.getCBObjekt().addActionListener(listener);
+        panel.getCBTrans().addActionListener(listener);
+        panel.getJBReset().addActionListener(listener);
         initObjects(panel.getRaster());
         initListeners(panel);
-        draw();
+        displey();
     }
 
+    //inicializace objektů
     public void initObjects(Raster raster) {
+        krivka = panel.getCBKrivka().getSelectedIndex();
+        object = panel.getCBObjekt().getSelectedIndex();
+        trans = panel.getCBTrans().getSelectedIndex();
+
         LineRasterizerGraphics lineRasterizer = new LineRasterizerGraphics(raster);
-        proj = new Mat4PerspRH(Math.toRadians(60),raster.getHeight()/(float)raster.getWidth(), 0.1f, 200f);
-        wireRenderer = new WireRenderer(raster, lineRasterizer, proj, camera.getViewMatrix());
+        projOrtho = new Mat4OrthoRH(5, 5, 0.1f, 200f);
+        projPers = new Mat4PerspRH(Math.toRadians(60), raster.getHeight() / (float) raster.getWidth(), 0.1f, 200f);
+        wireRenderer = new WireRenderer(raster, lineRasterizer, projPers, camera.getViewMatrix());
     }
 
     @Override
@@ -57,63 +134,118 @@ public class Controller3D implements Controller {
 
             //Stisknutí tlačítka myši
             @Override
-            public void mouseEntered(MouseEvent e) {
-                mouseX=e.getX();
-                mouseY=e.getY();
+            public void mousePressed(MouseEvent e) {
+                mouseButton = e.getButton();
             }
-
         });
 
         panel.addMouseMotionListener(new MouseMotionAdapter() {
+
             //Stisknutí tlačítka myši a přetažení
-            @Override
             public void mouseDragged(MouseEvent e) {
 
-            }
-            @Override
-            public void mouseMoved(MouseEvent e) {
-                    if(e.getX()>mouseX){
+                if (panel.isKameraPohyb() && mouseButton == MouseEvent.BUTTON1) {
+                    if (e.getX() > mouseX && azimuth > -Math.toRadians(90)) {
                         azimuth -= Math.toRadians(.5);
-                        cameraSetPotic();
-                    }else if (e.getX()<mouseX){
+                        cameraSetPosition();
+                    } else if (e.getX() < mouseX && azimuth < Math.toRadians(90)) {
                         azimuth += Math.toRadians(.5);
-                        cameraSetPotic();
+                        cameraSetPosition();
                     }
-
-                    if (e.getY() > mouseY) {
+                    if (e.getY() > mouseY && zenith > -Math.toRadians(90)) {
                         zenith -= Math.toRadians(.5);
-                        cameraSetPotic();
-                    } else if (e.getY() < mouseY) {
+                        cameraSetPosition();
+                    } else if (e.getY() < mouseY && zenith < Math.toRadians(90)) {
                         zenith += Math.toRadians(.5);
-                        cameraSetPotic();
+                        cameraSetPosition();
                     }
-
-                mouseX = e.getX();
-                mouseY = e.getY();
+                    mouseX = e.getX();
+                    mouseY = e.getY();
+                }
             }
         });
 
         panel.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                switch(e.getKeyCode()) {
-                    case KeyEvent.VK_W: case KeyEvent.VK_UP:
-                        position = new Vec3D(position.getX()+.1, position.getY(), position.getZ());
-                        cameraSetPotic();
-                        break;
-                    case KeyEvent.VK_S: case KeyEvent.VK_DOWN:
-                        position = new Vec3D(position.getX()-.1, position.getY(), position.getZ());
-                        cameraSetPotic();
-                        break;
-                    case KeyEvent.VK_A: case KeyEvent.VK_LEFT:
-                        position = new Vec3D(position.getX(), position.getY()+.1, position.getZ());
-                        cameraSetPotic();
-                        break;
-                    case KeyEvent.VK_D: case KeyEvent.VK_RIGHT:
-                        position = new Vec3D(position.getX(), position.getY()-.1, position.getZ());
-                        cameraSetPotic();
-                        break;
+                int keyCode = e.getKeyCode();
+                if (panel.isChuze()) {
+                    if (keyCode == KeyEvent.VK_W) {
+                        position = new Vec3D(position.getX() + .1, position.getY(), position.getZ());
+                        cameraSetPosition();
+                    } else if (keyCode == KeyEvent.VK_S) {
+                        position = new Vec3D(position.getX() - .1, position.getY(), position.getZ());
+                        cameraSetPosition();
+                    } else if (keyCode == KeyEvent.VK_A) {
+                        position = new Vec3D(position.getX(), position.getY() + .1, position.getZ());
+                        cameraSetPosition();
+                    } else if (keyCode == KeyEvent.VK_D) {
+                        position = new Vec3D(position.getX(), position.getY() - .1, position.getZ());
+                        cameraSetPosition();
+                    }
                 }
+                if (keyCode == KeyEvent.VK_R) {
+                    position = new Vec3D(-3, 1, 1);
+                    azimuth = Math.toRadians(0);
+                    zenith = Math.toRadians(0);
+                } else if (keyCode == KeyEvent.VK_NUMPAD4) {
+                    switch (trans) {
+                        case 0 -> {
+                            mat4Transl = new Mat4Transl(.1, 0, 0);
+                            model = model.mul(mat4Transl);
+                        }
+                        case 1 -> model = model.mul(mat4RotXUp);
+                        case 2 -> {
+                            mat4Scale = new Mat4Scale(1.1, 1.1, 1.1);
+                            model = model.mul(mat4Scale);
+                        }
+                    }
+                } else if (keyCode == KeyEvent.VK_NUMPAD1) {
+                    switch (trans) {
+                        case 0 -> {
+                            mat4Transl = new Mat4Transl(-.1, 0, 0);
+                            model = model.mul(mat4Transl);
+                        }
+                        case 1 -> model = model.mul(mat4RotXDown);
+                        case 2 -> {
+                            mat4Scale = new Mat4Scale(.9, .9, .9);
+                            model = model.mul(mat4Scale);
+                        }
+                    }
+                } else if (keyCode == KeyEvent.VK_NUMPAD5) {
+                    switch (trans) {
+                        case 0 -> {
+                            mat4Transl = new Mat4Transl(0, .1, 0);
+                            model = model.mul(mat4Transl);
+                        }
+                        case 1 -> model = model.mul(mat4RotYUp);
+                    }
+                } else if (keyCode == KeyEvent.VK_NUMPAD2) {
+                    switch (trans) {
+                        case 0 -> {
+                            mat4Transl = new Mat4Transl(0, -.1, 0);
+                            model = model.mul(mat4Transl);
+                        }
+                        case 1 -> model = model.mul(mat4RotYDown);
+                    }
+                } else if (keyCode == KeyEvent.VK_NUMPAD6) {
+                    switch (trans) {
+                        case 0 -> {
+                            mat4Transl = new Mat4Transl(0, 0, -.1);
+                            model = model.mul(mat4Transl);
+                        }
+                        case 1 -> model = model.mul(mat4RotZUP);
+                    }
+                } else if (keyCode == KeyEvent.VK_NUMPAD3) {
+                    switch (trans) {
+                        case 0 -> {
+                            mat4Transl = new Mat4Transl(0, 0, .1);
+                            model = model.mul(mat4Transl);
+                        }
+                        case 1 -> model = model.mul(mat4RotZDown);
+                    }
+                }
+                displey();
             }
         });
         panel.addComponentListener(new ComponentAdapter() {
@@ -125,24 +257,47 @@ public class Controller3D implements Controller {
         });
     }
 
-    private void draw (){
-        cube.setModel(mat4Scale);
+    private void displey() {
         panel.clear();
-        wireRenderer.render(axisX,axisY,axisZ,cube);
+        switch (object) {
+            case 0 -> {
+                cube.setModel(model);
+                wireRenderer.render(cube);
+            }
+            case 1 -> {
+                pyramid.setModel(model);
+                wireRenderer.render(pyramid);
+            }
+            case 2 -> {
+                hexahonal.setModel(model);
+                wireRenderer.render(hexahonal);
+            }
+        }
+        switch (krivka) {
+            case 0:
+                curveFerg.setModel(model);
+                wireRenderer.render(curveFerg);
+                break;
+            case 1:
+                curveBezi.setModel(model);
+                wireRenderer.render(curveBezi);
+                break;
+            case 2:
+                curveCoon.setModel(model);
+                wireRenderer.render(curveCoon);
+                break;
+        }
+
+
+        wireRenderer.render(axisX, axisY, axisZ);
         panel.repaint();
     }
-    private void update() {
-//        panel.clear();
 
-    }
-    private void cameraSetPotic (){
+    private void cameraSetPosition() {
         camera = new Camera(camera, position);
-        camera = new Camera(camera,azimuth,zenith);
+        camera = new Camera(camera, azimuth, zenith);
         wireRenderer.setView(camera.getViewMatrix());
-        draw();
-    }
-    private void hardClear() {
-        panel.clear();
+        displey();
     }
 
 }

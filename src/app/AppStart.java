@@ -21,7 +21,6 @@ public class AppStart {
 
     public static void calc(int n) {
         if (n-1>0){
-            System.out.println(n);
             calc(n -3%2);
         }
 
